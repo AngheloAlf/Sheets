@@ -25,6 +25,11 @@ class Token():
     def __repr__(self):
         return self.__str__()
 
+    def __eq__(self, other):
+        if not isinstance(other, Token):
+            return NotImplemented
+        return self.identifier == other.identifier
+
 
 TknMethod = NewType("TknMethod", str)
 
@@ -38,7 +43,7 @@ class Tokenizer():
     Method_Cont_Token: Final[TknMethod] = TknMethod("CONT_TKN")
 
     def __init__(self):
-        self.registered: List[Tuple[TknMethod, Union[str, List[str], Tuple[str, str]], str]] = list()
+        self.registered: List[Tuple[TknMethod, Union[str, List[str], Tuple[str, str]], Union[str, Tuple[str, str]]]] = list()
 
     def register_skipable(self, literal: str, identf: str):
         data = (Tokenizer.Method_Skip, literal, identf)
@@ -56,8 +61,8 @@ class Tokenizer():
         data = (Tokenizer.Method_Cont_Char, char_container, identf)
         self.registered.append(data)
 
-    def register_token_container(self, left_char_container: str, right_char_container: str, identf: str):
-        data = (Tokenizer.Method_Cont_Token, (left_char_container, right_char_container), identf)
+    def register_token_container(self, left_char_container: str, right_char_container: str, left_identf: str, right_identf):
+        data = (Tokenizer.Method_Cont_Token, (left_char_container, right_char_container), (left_identf, right_identf))
         self.registered.append(data)
 
 
@@ -111,10 +116,14 @@ class Tokenizer():
                     left, right = data
                     if char == left:
                         _state_change()
+                        left_identf, right_identf = identf
+                        result.append(Token(left_identf, char))
                         i += 1
                         j, sub_result = self._tokenize(expression[i:], right)
                         i += j
-                        result.append(Token(identf, sub_result))
+                        result += sub_result
+                        result.append(Token(right_identf, expression[i]))
+                        #result.append(Token(identf, sub_result))
                         parsed = True
                 if parsed:
                     break
@@ -127,19 +136,22 @@ class Tokenizer():
             result.append(Token(state, token))
         return i, result
 
-    def tokenize(self, expression: str) -> Token:
-        return Token("TOKEN", self._tokenize(expression)[1])
+    def tokenize(self, expression: str) -> List[Token]: # -> Token:
+        return self._tokenize(expression)[1]
+        # return Token("TOKEN", self._tokenize(expression)[1])
 
 
 formula_tokenizer = Tokenizer()
 formula_tokenizer.register_skipable(" ", "SPACE")
 formula_tokenizer.register_skipable("\t", "TAB")
 formula_tokenizer.register_skipable("\n", "NEWLINE")
+
 formula_tokenizer.register_chars_container("'", "SINGLE_QUOTE_STRING")
 formula_tokenizer.register_chars_container('"', "DOUBLE_QUOTE_STRING")
-formula_tokenizer.register_token_container("(", ")", "PARENTHESES")
-formula_tokenizer.register_token_container("{", "}", "CURLY")
-formula_tokenizer.register_token_container("[", "]", "BRACKET")
+
+formula_tokenizer.register_token_container("(", ")", "LEFT_PARENTHESES", "RIGHT_PARENTHESES")
+formula_tokenizer.register_token_container("{", "}", "LEFT_CURLY", "RIGHT_CURLY")
+formula_tokenizer.register_token_container("[", "]", "LEFT_BRACKET", "RIGHT_BRACKET")
 
 symbols = ["$", ":", "!", "#", ".", ",", ";", "&"]
 arithmetic = ["+", "-", "*", "/", "%", "=", "<>", "<=", ">=", "<", ">"]
@@ -155,4 +167,5 @@ formula_tokenizer.register_sequence(normal_chars, "WORD")
 if __name__ == "__main__":
     formula = '=IF(OR($B102="", G$3=""), "", CALC_POINTS_FROM_RANGE(M102, M$4:M$203, M$1, someSheet!M$2))'
     tokenized = formula_tokenizer.tokenize(formula[1:])
-    print(tokenized)
+    for x in tokenized:
+        print(x)
