@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Tuple
 from typing import Final, Union, Optional, NewType
 
-import utils
+from .. import utils
 
 
 class Token():
@@ -12,11 +12,14 @@ class Token():
     
     def stringify(self, deepness=0, indent=2):
         if isinstance(self.token, str):
-            return (" "*indent*deepness) + f"{self.identifier}: {self.token}"
-        result = (" "*indent*deepness) + f"{self.identifier}:\n"
+            return (" "*indent*deepness) + "<" + f"{self.identifier}: {self.token}" + ">"
+        result = (" "*indent*deepness) + "<" + f"{self.identifier}:\n"
         for i in self.token:
-            result += i.stringify(deepness+1, indent) + "\n"
-        result += (" "*indent*deepness) + f":{self.identifier}"
+            if isinstance(i, Token):
+                result += i.stringify(deepness+1, indent) + "\n"
+            else:
+                result += (" "*indent*(deepness+1)) + str(i) + "\n"
+        result += (" "*indent*deepness) + f":{self.identifier}" + ">"
         return result
 
     def __str__(self):
@@ -26,9 +29,9 @@ class Token():
         return self.__str__()
 
     def __eq__(self, other):
-        if not isinstance(other, Token):
-            return NotImplemented
-        return self.identifier == other.identifier
+        if isinstance(other, Token):
+            return self.identifier == other.identifier
+        return self.identifier == other
 
 
 TknMethod = NewType("TknMethod", str)
@@ -149,9 +152,9 @@ formula_tokenizer.register_skipable("\n", "NEWLINE")
 formula_tokenizer.register_chars_container("'", "SINGLE_QUOTE_STRING")
 formula_tokenizer.register_chars_container('"', "DOUBLE_QUOTE_STRING")
 
-formula_tokenizer.register_token_container("(", ")", "LEFT_PARENTHESES", "RIGHT_PARENTHESES")
-formula_tokenizer.register_token_container("{", "}", "LEFT_CURLY", "RIGHT_CURLY")
-formula_tokenizer.register_token_container("[", "]", "LEFT_BRACKET", "RIGHT_BRACKET")
+formula_tokenizer.register_token_container("(", ")", "(", ")")
+formula_tokenizer.register_token_container("{", "}", "{", "}")
+formula_tokenizer.register_token_container("[", "]", "[", "]")
 
 symbols = ["$", ":", "!", "#", ".", ",", ";", "&"]
 arithmetic = ["+", "-", "*", "/", "%", "=", "<>", "<=", ">=", "<", ">"]
@@ -163,9 +166,3 @@ formula_tokenizer.register_sequence(numbers, "NUMBER")
 
 normal_chars = ["_"] + [chr(i) for i in range(ord("A"), ord("Z")+1)] + [chr(i) for i in range(ord("a"), ord("z")+1)]
 formula_tokenizer.register_sequence(normal_chars, "WORD")
-
-if __name__ == "__main__":
-    formula = '=IF(OR($B102="", G$3=""), "", CALC_POINTS_FROM_RANGE(M102, M$4:M$203, M$1, someSheet!M$2))'
-    tokenized = formula_tokenizer.tokenize(formula[1:])
-    for x in tokenized:
-        print(x)
