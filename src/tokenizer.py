@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import List, Tuple
 from typing import Final, Union, Optional, NewType
-# import json
+
+import utils
 
 
 class Token():
@@ -65,6 +66,14 @@ class Tokenizer():
         result: List[Token] = []
         state = Tokenizer.State_None
         token = ""
+        def _state_change():
+            nonlocal state
+            nonlocal token
+            if state != Tokenizer.State_None:
+                result.append(Token(state, token))
+                state = Tokenizer.State_None
+                token = ""
+
         while i < len(expression):
             char = expression[i]
             if char == end_char:
@@ -73,56 +82,38 @@ class Tokenizer():
             parsed = False
             for method, data, identf in self.registered:
                 if method == Tokenizer.Method_Skip:
-                    length = len(data)
-                    literal = expression[i:i+length]
-                    if literal == data:
-                        if state != Tokenizer.State_None:
-                            result.append(Token(state, token))
-                            state = Tokenizer.State_None
+                    if utils.match_at(data, expression, i):
+                        _state_change()
                         parsed = True
                 elif method == Tokenizer.Method_Sequence:
                     if char in data:
                         if state != identf:
-                            if state != Tokenizer.State_None:
-                                result.append(Token(state, token))
-                            token = ""
+                            _state_change()
                             state = identf
                         token += char
                         parsed = True
                 elif method == Tokenizer.Method_Literal:
-                    length = len(data)
-                    literal = expression[i:i+length]
-                    if literal == data:
-                        if state != Tokenizer.State_None:
-                            result.append(Token(state, token))
-                        token = ""
-                        state = Tokenizer.State_None
-                        result.append(Token(identf, literal))
-                        state = Tokenizer.State_None
+                    if utils.match_at(data, expression, i):
+                        _state_change()
+                        result.append(Token(identf, data))
                         parsed = True
                 elif method == Tokenizer.Method_Cont_Char:
                     if char == data:
-                        if state != Tokenizer.State_None:
-                            result.append(Token(state, token))
-                            state = Tokenizer.State_None
-                        token = ""
+                        _state_change()
                         i += 1
+                        container = ""
                         while expression[i] != data:
-                            token += expression[i]
+                            container += expression[i]
                             i += 1
-                        result.append(Token(identf, token))
-                        token = ""
+                        result.append(Token(identf, container))
                         parsed = True
                 elif method == Tokenizer.Method_Cont_Token:
                     left, right = data
                     if char == left:
-                        if state != Tokenizer.State_None:
-                            result.append(Token(state, token))
-                            state = Tokenizer.State_None
-                        token = ""
-
-                        j, sub_result = self._tokenize(expression[i+1:], right)
-                        i += j + 1
+                        _state_change()
+                        i += 1
+                        j, sub_result = self._tokenize(expression[i:], right)
+                        i += j
                         result.append(Token(identf, sub_result))
                         parsed = True
                 if parsed:
@@ -140,27 +131,28 @@ class Tokenizer():
         return Token("TOKEN", self._tokenize(expression)[1])
 
 
-_special_symbols = ["$", ":", "!", "#", ",", "&"]
-_arithmetic = ["+", "-", "*", "/", "=", "<", ">"]
-_numbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-_normal_chars = ["_", 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-
-
 formula_tokenizer = Tokenizer()
 formula_tokenizer.register_skipable(" ", "SPACE")
+formula_tokenizer.register_skipable("\t", "TAB")
+formula_tokenizer.register_skipable("\n", "NEWLINE")
 formula_tokenizer.register_chars_container("'", "SINGLE_QUOTE_STRING")
 formula_tokenizer.register_chars_container('"', "DOUBLE_QUOTE_STRING")
 formula_tokenizer.register_token_container("(", ")", "PARENTHESES")
 formula_tokenizer.register_token_container("{", "}", "CURLY")
 formula_tokenizer.register_token_container("[", "]", "BRACKET")
-formula_tokenizer.register_sequence(_special_symbols, "SYMBOL")
-formula_tokenizer.register_sequence(_arithmetic, "SYMBOL")
-formula_tokenizer.register_sequence(_numbers, "NUMBER")
-formula_tokenizer.register_sequence(_normal_chars, "WORD")
 
+symbols = ["$", ":", "!", "#", ".", ",", ";", "&"]
+arithmetic = ["+", "-", "*", "/", "%", "=", "<>", "<=", ">=", "<", ">"]
+for i in symbols+arithmetic:
+    formula_tokenizer.register_literal(i, i)
+
+numbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+formula_tokenizer.register_sequence(numbers, "NUMBER")
+
+normal_chars = ["_"] + [chr(i) for i in range(ord("A"), ord("Z")+1)] + [chr(i) for i in range(ord("a"), ord("z")+1)]
+formula_tokenizer.register_sequence(normal_chars, "WORD")
 
 if __name__ == "__main__":
     formula = '=IF(OR($B102="", G$3=""), "", CALC_POINTS_FROM_RANGE(M102, M$4:M$203, M$1, someSheet!M$2))'
     tokenized = formula_tokenizer.tokenize(formula[1:])
     print(tokenized)
-    #print(json.dumps(tokenized, indent=2))
