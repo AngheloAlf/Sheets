@@ -156,9 +156,11 @@ formula_tokenizer.register_token_container("(", ")", "(", ")")
 formula_tokenizer.register_token_container("{", "}", "{", "}")
 formula_tokenizer.register_token_container("[", "]", "[", "]")
 
-symbols = ["$", ":", "!", "#", ".", ",", ";", "&"]
-arithmetic = ["+", "-", "*", "/", "%", "=", "<>", "<=", ">=", "<", ">"]
-for i in symbols+arithmetic:
+symbols = ["$", ":", "!", "#", ".", ",", ";"]
+binary_arithmetic_ops = ["+", "-", "*", "/", "^", "&"]
+unary_arithmetic_ops = ["%"]
+equality_ops = ["=", "<>", "<=", ">=", "<", ">"]
+for i in symbols+binary_arithmetic_ops+unary_arithmetic_ops+equality_ops:
     formula_tokenizer.register_literal(i, i)
 
 numbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
