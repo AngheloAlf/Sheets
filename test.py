@@ -8,4 +8,5 @@ if __name__ == "__main__":
     # for x in tokenized:
     #     print(x)
     parsed = token_analizer.analizer.parse(tokenized)
-    print(parsed)
+    print(formula)
+    print(parsed.token)
