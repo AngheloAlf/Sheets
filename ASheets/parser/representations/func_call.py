@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import Optional
 
-from ..tokenizer import Token
+from .abstract_representation import ARepresentation
+from ..token import Token
 
 
-class Param():
+class Param(ARepresentation):
     def __init__(self, expr: Token):
         self.expr = expr
     
@@ -12,7 +13,7 @@ class Param():
         return str(self.expr.token) + ", "
 
 
-class Params():
+class Params(ARepresentation):
     def __init__(self, param: Token, other_params: Optional[Token]=None):
         self.param = param
         self.other_params = other_params
@@ -23,7 +24,7 @@ class Params():
         return str(self.other_params.token) + str(self.param.token)
 
 
-class ParamList():
+class ParamList(ARepresentation):
     def __init__(self, params: Token, expr: Token):
         self.params = params
         self.expr = expr
@@ -32,7 +33,7 @@ class ParamList():
         return str(self.params.token) + str(self.expr.token) + ")"
 
 
-class FuncCall():
+class FuncCall(ARepresentation):
     def __init__(self, name: Token, param: Optional[Token]=None, param_list: Optional[Token]=None):
         self.name = name
         self.param = param

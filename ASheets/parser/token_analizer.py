@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import List, Tuple
 
-from .tokenizer import Token
+from .token import Token
 from .. import utils
 
 from .representations.generic_expression import GenericExpression

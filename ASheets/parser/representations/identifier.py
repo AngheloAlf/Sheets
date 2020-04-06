@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import Optional
 
-from ..tokenizer import Token
+from .abstract_representation import ARepresentation
+from ..token import Token
 
 
-class Identifier():
+class Identifier(ARepresentation):
     def __init__(self, identf: Token, extra: Optional[Token]=None):
         self.identf = identf
         self.extra = extra

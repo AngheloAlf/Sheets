@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from ..tokenizer import Token
+from .abstract_representation import ARepresentation
+from ..token import Token
 
 
-class TypeString():
+class TypeString(ARepresentation):
     def __init__(self, string: Token):
         self.string = string
     
@@ -11,7 +12,7 @@ class TypeString():
         return f'"{str(self.string.token)}"'
 
 
-class TypeFloat():
+class TypeFloat(ARepresentation):
     def __init__(self, before_dot: Token, after_dot: Token):
         self.before_dot = before_dot
         self.after_dot = after_dot

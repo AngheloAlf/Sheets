@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from ..tokenizer import Token
+from .abstract_representation import ARepresentation
+from ..token import Token
 
 
-class Formula():
+class Formula(ARepresentation):
     def __init__(self, formula: Token):
         self.formula = formula
     

@@ -1,10 +1,11 @@
 
 from __future__ import annotations
 
-from ..tokenizer import Token
+from .abstract_representation import ARepresentation
+from ..token import Token
 
 
-class A1():
+class A1(ARepresentation):
     def __init__(self, column: Token, row: Token, fixed_col: bool=False, fixed_row: bool=False):
         self.column = column
         self.row = row
@@ -22,7 +23,7 @@ class A1():
         return result
 
 
-class A1_A1():
+class A1_A1(ARepresentation):
     def __init__(self, from_: Token, to_: Token):
         self.from_ = from_
         self.to_ = to_
@@ -31,7 +32,7 @@ class A1_A1():
         return f"{self.from_.token}:{self.to_.token}"
 
 
-class Sheet_A1():
+class Sheet_A1(ARepresentation):
     def __init__(self, sheet_name: Token, a1: Token):
         self.sheet_name = sheet_name
         self.a1 = a1

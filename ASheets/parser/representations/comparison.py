@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from ..tokenizer import Token
+from .abstract_representation import ARepresentation
+from ..token import Token
 
 
-class CompBase():
+class CompBase(ARepresentation):
     def __init__(self, symbol: str, left: Token, right: Token):
         self.symbol = symbol
         self.left = left
