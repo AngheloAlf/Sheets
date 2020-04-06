@@ -111,32 +111,5 @@ class Tokenizer():
             result.append(Token(state, token))
         return i, result
 
-    def tokenize(self, expression: str) -> List[Token]: # -> Token:
+    def tokenize(self, expression: str) -> List[Token]:
         return self._tokenize(expression)[1]
-        # return Token("TOKEN", self._tokenize(expression)[1])
-
-
-formula_tokenizer = Tokenizer()
-formula_tokenizer.register_skipable(" ", "SPACE")
-formula_tokenizer.register_skipable("\t", "TAB")
-formula_tokenizer.register_skipable("\n", "NEWLINE")
-
-formula_tokenizer.register_chars_container("'", "SINGLE_QUOTE_STRING")
-formula_tokenizer.register_chars_container('"', "DOUBLE_QUOTE_STRING")
-
-formula_tokenizer.register_token_container("(", ")", "(", ")")
-formula_tokenizer.register_token_container("{", "}", "{", "}")
-formula_tokenizer.register_token_container("[", "]", "[", "]")
-
-symbols = ["$", ":", "!", "#", ".", ",", ";"]
-binary_arithmetic_ops = ["+", "-", "*", "/", "^", "&"]
-unary_arithmetic_ops = ["%"]
-equality_ops = ["=", "<>", "<=", ">=", "<", ">"]
-for i in symbols+binary_arithmetic_ops+unary_arithmetic_ops+equality_ops:
-    formula_tokenizer.register_literal(i, i)
-
-numbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-formula_tokenizer.register_sequence(numbers, "NUMBER")
-
-normal_chars = ["_"] + [chr(i) for i in range(ord("A"), ord("Z")+1)] + [chr(i) for i in range(ord("a"), ord("z")+1)]
-formula_tokenizer.register_sequence(normal_chars, "WORD")
