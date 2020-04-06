@@ -55,7 +55,7 @@ class TokenAnalizer():
                     print(x)
                 raise RuntimeError(f"iterout ({iterout}) exceeded.")
             last_len = len(tokens)
-        return tokens
+        return tokens[0]
 
 
 
@@ -84,13 +84,13 @@ analizer.register_identifier("FUNC_CALL", ["IDENTIFIER", "(", ")"], lambda *x: x
 analizer.register_identifier("FUNC_CALL", ["IDENTIFIER", "(", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("FUNC_CALL", ["IDENTIFIER", "PARAM_LIST"], lambda *x: x)
 
-#analizer.register_identifier("PARAM", ["EXPRESSION", ","], lambda *x: x)
-#analizer.register_identifier("PARAM", ["IDENTIFIER", ","], lambda *x: x)
+analizer.register_identifier("PARAM", ["EXPRESSION", ","], lambda *x: x)
+analizer.register_identifier("PARAM", ["IDENTIFIER", ","], lambda *x: x)
 
-# analizer.register_identifier("PARAMS", ["PARAM"], lambda *x: x)
-#analizer.register_identifier("PARAM", ["PARAM", "PARAM"], lambda *x: x)
-#analizer.register_identifier("PARAM_LIST", ["(", "PARAMS", "EXPRESSION", ")"], lambda *x: x)
-#analizer.register_identifier("PARAM_LIST", ["(", "PARAMS", "IDENTIFIER", ")"], lambda *x: x)
+analizer.register_identifier("PARAMS", ["(", "PARAM"], lambda *x: x)
+analizer.register_identifier("PARAMS", ["PARAMS", "PARAM"], lambda *x: x)
+analizer.register_identifier("PARAM_LIST", ["PARAMS", "EXPRESSION", ")"], lambda *x: x)
+analizer.register_identifier("PARAM_LIST", ["PARAMS", "IDENTIFIER", ")"], lambda *x: x)
 
 analizer.register_identifier("EXPRESSION", ["FUNC_CALL"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["STRING"], lambda *x: x)
@@ -101,18 +101,31 @@ analizer.register_identifier("EXPRESSION", ["SHEET!A1"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["SHEET!A1:A1"], lambda *x: x)
 
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "^", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "^", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "/", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "/", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "*", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "*", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "-", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "-", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "+", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "+", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "&", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "&", "EXPRESSION", ")"], lambda *x: x)
 
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "=", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "=", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "<>", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "<>", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "<=", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "<=", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", ">=", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", ">=", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", "<", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "<", "EXPRESSION", ")"], lambda *x: x)
 analizer.register_identifier("EXPRESSION", ["EXPRESSION", ">", "EXPRESSION"], lambda *x: x)
+analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", ">", "EXPRESSION", ")"], lambda *x: x)
 
-analizer.register_identifier("FORMULA", ["=", "STATEMENT"], lambda *x: x)
+analizer.register_identifier("FORMULA", ["=", "(", "EXPRESSION", ")"], lambda *x: x)
+analizer.register_identifier("FORMULA", ["=", "EXPRESSION"], lambda *x: x)
 
