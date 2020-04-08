@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List, Tuple
 from typing import Final, Union, Optional, NewType
+import re
 
 from .token import Token
 from .tokenizer import Tokenizer
@@ -18,30 +19,55 @@ from .representations.formula import Formula
 
 
 def configureFormulaTokenizer(tokenizer: Tokenizer) -> None:
-    tokenizer.register_skipable(" ", "SPACE")
-    tokenizer.register_skipable("\t", "TAB")
-    tokenizer.register_skipable("\n", "NEWLINE")
+    tokenizer.register_skipable("SPACE", r"\s+")
 
-    tokenizer.register_chars_container("'", "SINGLE_QUOTE_STRING")
-    tokenizer.register_chars_container('"', "DOUBLE_QUOTE_STRING")
+    tokenizer.register("IDENTIFIER", r"[a-zA-Z_]([a-zA-Z_0-9])*")
+    tokenizer.register("NUMBER", r"(\d+(\.\d+)?)|(\.(\d+))")
 
-    tokenizer.register_token_container("(", ")", "(", ")")
-    tokenizer.register_token_container("{", "}", "{", "}")
-    tokenizer.register_token_container("[", "]", "[", "]")
+    brackets = [
+        ("L_PAREN", "("), 
+        ("R_PAREN", ")"), 
+        ("L_CURLY", "{"), 
+        ("R_CURLY", "}"), 
+        ("L_BRACKET", "["), 
+        ("R_BRACKET", "]")
+    ]
+    symbols = [
+        ("DOLLAR", "$"), 
+        ("COLON", ":"), 
+        ("EXCLAM", "!"), 
+        ("NUMB_SIGN", "#"), 
+        ("DOT", "."), 
+        ("COMMA", ","), 
+        ("SEMI_COLON", ";"), 
+        ("QUOT", "'"), 
+        ("QUOT_DOUBLE", "\"")
+    ]
+    binary_arithmetic_ops = [
+        ("ADD", "+"), 
+        ("SUB", "-"), 
+        ("MULT", "*"), 
+        ("DIV", "/"), 
+        ("EXPONENT", "^"), 
+        ("AMPERSAND", "&")
+    ]
+    unary_arithmetic_ops = [
+        ("PERCENT", "%"), 
+    ]
+    equality_ops = [
+        ("EQUAL", "="), 
+        ("NOTEQUAL", "<>"), 
+        ("LQ", "<="), 
+        ("GQ", ">="), 
+        ("LT", "<"), 
+        ("GT", ">")
+    ]
+    for name, expression in brackets+symbols+binary_arithmetic_ops+unary_arithmetic_ops+equality_ops:
+        tokenizer.register(name, re.escape(expression), lambda x: Token(x.token, x.token))
 
-    symbols = ["$", ":", "!", "#", ".", ",", ";"]
-    binary_arithmetic_ops = ["+", "-", "*", "/", "^", "&"]
-    unary_arithmetic_ops = ["%"]
-    equality_ops = ["=", "<>", "<=", ">=", "<", ">"]
-    for i in symbols+binary_arithmetic_ops+unary_arithmetic_ops+equality_ops:
-        tokenizer.register_literal(i, i)
-
-    numbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-    tokenizer.register_sequence(numbers, "NUMBER")
-
-    normal_chars = ["_"] + [chr(i) for i in range(ord("A"), ord("Z")+1)] + [chr(i) for i in range(ord("a"), ord("z")+1)]
-    tokenizer.register_sequence(normal_chars, "WORD")
-
+    def error_callback(x):
+        raise ValueError(f"Unrecognized value: {x}")
+    tokenizer.register("ERROR", r".", lambda x: error_callback)
     return
 
 
