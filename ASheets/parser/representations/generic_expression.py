@@ -5,8 +5,12 @@ from ..token import Token
 
 
 class GenericExpression(ARepresentation):
+    pass
+    """
     def __init__(self, expr: Token):
         self.expr = expr
     
     def __str__(self):
         return str(self.expr.token)
+    pass
+    """

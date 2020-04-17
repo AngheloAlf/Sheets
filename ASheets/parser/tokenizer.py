@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Tuple, Dict, Callable
-from typing import Final, Union, Optional, NewType
+from typing import Final, Union, Optional, NewType, cast
 import re
 
 from .token import Token
@@ -16,8 +16,8 @@ class Tokenizer():
     def __init__(self):
         self._registered: List[Tuple[str, str]] = list()
         self._name_data: Dict[str, Tuple[TknMethod_t, Callable[[Token], Token]]] = dict()
-        self._reg_expr = None
-        self._compiled = False
+        self._reg_expr: Optional[re.Pattern] = None
+        self._compiled: bool = False
 
     def register_skipable(self, name: str, reg_expression: str, callback: Callable[[Token], Token]=lambda x: x):
         self._registered.append((name, reg_expression))
@@ -30,16 +30,16 @@ class Tokenizer():
         self._compiled = False
 
 
-    def tokenize(self, formula: str):
-        if not self._compiled:
+    def tokenize(self, formula: str) -> List[Token]:
+        if not self._compiled or self._reg_expr is None:
             expr = '|'.join(f"(?P<{name}>{expression})" for name, expression in self._registered)
             self._reg_expr = re.compile(expr)
             self._compiled = True
-        
+
         result = []
         for match in self._reg_expr.finditer(formula):
-            name = match.lastgroup
-            value = match.group()
+            name: str = cast(str, match.lastgroup)
+            value: str = match.group()
             method, callback = self._name_data[name]
             if method == Tokenizer.Method_Store:
                 result.append(callback(Token(name, value)))

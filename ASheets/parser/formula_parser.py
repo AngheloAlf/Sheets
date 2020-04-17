@@ -8,19 +8,32 @@ from .tokenizer import Tokenizer
 from .token_analizer import TokenAnalizer
 from .. import utils
 
-from .representations.generic_expression import GenericExpression
-from .representations.data_types import TypeString, TypeFloat
-from .representations.identifier import Identifier
-from .representations.a1 import A1, A1_A1, Sheet_A1
-from .representations.func_call import Param, Params, ParamList, FuncCall
-from .representations.binary_arithmetic import Power, Divide, Multiply, Substract, Add, Concat
-from .representations.comparison import Equal, NotEqual, LessEqual, GreaterEqual, LessThan, GreaterThan
-from .representations.formula import Formula
+from ASheets.parser.representations.generic_expression import GenericExpression
+from ASheets.parser.representations.data_types import TypeString, TypeNumber, TypeBoolean, TypeErrorGeneral, Constant
+from ASheets.parser.representations.identifier import Identifier
+from ASheets.parser.representations.a1 import A1, A1_A1, Sheet_A1
+from ASheets.parser.representations.func_call import Param, Params, ParamList, FuncCall
+from ASheets.parser.representations.binary_operator import BinaryOperator, Power, Divide, Multiply, Substract, Add, Concat, Equal, NotEqual, LessEqual, GreaterEqual, LessThan, GreaterThan
+from ASheets.parser.representations.unary_operator import UnaryOperatorPre, UnaryOperatorPost, UnaryMinus, UnaryPlus, UnaryPercent
+from ASheets.parser.representations.operation import Operation, OperationItem
+from ASheets.parser.representations.reference import Reference, ReferenceItem, NamedRange
+from ASheets.parser.representations.formula import Formula
+from ASheets.parser.representations.abstract_representation import Start, ARepresentation
+
 
 
 def configureFormulaTokenizer(tokenizer: Tokenizer) -> None:
     tokenizer.register_skipable("SPACE", r"\s+")
 
+    tokenizer.register("BOOL", r"TRUE|FALSE")
+
+    tokenizer.register("CELL", r"\$?[A-Z]+\$?[1-9]([0-9]*)")
+
+    tokenizer.register("ERROR_REF", r"\#REF!")
+    tokenizer.register("ERROR_GENERAL", r"(\#NULL!)|(\#DIV/0)|(\#VALUE!)|(\#NAME?)|(\#NUM!)|(\#N/A)")
+
+    tokenizer.register("STRING", r'"([^"]*)"')
+    tokenizer.register("SINGLE_QUOTE_STRING", r"([^']*)'")
     tokenizer.register("IDENTIFIER", r"[a-zA-Z_]([a-zA-Z_0-9])*")
     tokenizer.register("NUMBER", r"(\d+(\.\d+)?)|(\.(\d+))")
 
@@ -67,80 +80,128 @@ def configureFormulaTokenizer(tokenizer: Tokenizer) -> None:
 
     def error_callback(x):
         raise ValueError(f"Unrecognized value: {x}")
-    tokenizer.register("ERROR", r".", lambda x: error_callback)
+    tokenizer.register("__ERROR", r".", error_callback)
     return
 
 
 def configureFormulaAnalizer(analizer: TokenAnalizer) -> None:
-    analizer.register_identifier("A1", ["WORD", "$", "NUMBER"], lambda *x: A1(x[0], x[2], fixed_row=True))
-    analizer.register_identifier("A1", ["$", "WORD", "NUMBER"], lambda *x: A1(x[1], x[2], fixed_col=True))
-    analizer.register_identifier("A1", ["$", "WORD", "$", "NUMBER"], lambda *x: A1(x[1], x[3], fixed_col=True, fixed_row=True))
+    analizer.register_start(Start, ["=", Formula])
 
-    analizer.register_identifier("STRING", ["SINGLE_QUOTE_STRING"], lambda *x: TypeString(x[0]))
-    analizer.register_identifier("STRING", ["DOUBLE_QUOTE_STRING"], lambda *x: TypeString(x[0]))
+    analizer.register(Formula, [Constant])
+    analizer.register(Formula, [FuncCall])
+    analizer.register(Formula, [Reference])
+    #analizer.register(Formula, [Operation])
+    # analizer.register(Formula, [ConstantArray])
+    analizer.register(Formula, ["(", Formula, ")"])
 
-    analizer.register_identifier("FLOAT", ["NUMBER", ".", "NUMBER"], lambda *x: TypeFloat(x[0], x[2]))
+    analizer.register(Constant, [TypeString])
+    analizer.register(Constant, [TypeNumber])
+    analizer.register(Constant, [TypeBoolean])
+    analizer.register(Constant, [TypeErrorGeneral])
 
-    analizer.register_identifier("IDENTIFIER", ["WORD", "NUMBER"], lambda *x: Identifier(x[0], x[1]))
-    analizer.register_identifier("IDENTIFIER", ["WORD"], lambda *x: Identifier(x[0]))
-    analizer.register_identifier("IDENTIFIER", ["IDENTIFIER", "WORD"], lambda *x: Identifier(x[0], x[1]))
-    analizer.register_identifier("IDENTIFIER", ["IDENTIFIER", "NUMBER"], lambda *x: Identifier(x[0], x[1]))
+    analizer.register(TypeString, ["STRING"])
+    analizer.register(TypeNumber, ["NUMBER"])
+    analizer.register(TypeBoolean, ["BOOL"])
+    analizer.register(TypeErrorGeneral, ["ERROR_GENERAL"])
 
-    analizer.register_identifier("A1:A1", ["A1", ":", "A1"], lambda *x: A1_A1(x[0], x[2]))
-    analizer.register_identifier("A1:A1", ["A1", ":", "IDENTIFIER"], lambda *x: A1_A1(x[0], x[2]))
-    analizer.register_identifier("A1:A1", ["IDENTIFIER", ":", "A1"], lambda *x: A1_A1(x[0], x[2]))
 
-    analizer.register_identifier("SHEET!A1", ["IDENTIFIER", "!", "A1"], lambda *x: Sheet_A1(x[0], x[2]))
-    analizer.register_identifier("SHEET!A1:A1", ["IDENTIFIER", "!", "A1:A1"], lambda *x: Sheet_A1(x[0], x[2]))
+    analizer.register(Reference, [ReferenceItem])
+    #analizer.register(Reference, [Prefix, Reference])
+    analizer.register(Reference, ["(", Reference, ")"])
 
-    analizer.register_identifier("FUNC_CALL", ["IDENTIFIER", "(", ")"], lambda *x: FuncCall(x[0]))
-    analizer.register_identifier("FUNC_CALL", ["IDENTIFIER", "(", "EXPRESSION", ")"], lambda *x: FuncCall(x[0], param=x[2]))
-    analizer.register_identifier("FUNC_CALL", ["IDENTIFIER", "(", "IDENTIFIER", ")"], lambda *x: FuncCall(x[0], param=x[2]))
-    analizer.register_identifier("FUNC_CALL", ["IDENTIFIER", "PARAM_LIST"], lambda *x: FuncCall(x[0], param_list=x[1]))
 
-    analizer.register_identifier("PARAM", ["EXPRESSION", ","], lambda *x: Param(x[0]))
-    analizer.register_identifier("PARAM", ["IDENTIFIER", ","], lambda *x: Param(x[0]))
-    analizer.register_identifier("PARAMS", ["(", "PARAM"], lambda *x: Params(x[1]))
-    analizer.register_identifier("PARAMS", ["PARAMS", "PARAM"], lambda *x: Params(x[1], x[0]))
-    analizer.register_identifier("PARAM_LIST", ["PARAMS", "EXPRESSION", ")"], lambda *x: ParamList(x[0], x[1]))
-    analizer.register_identifier("PARAM_LIST", ["PARAMS", "IDENTIFIER", ")"], lambda *x: ParamList(x[0], x[1]))
+    analizer.register(ReferenceItem, [Sheet_A1])
+    analizer.register(ReferenceItem, [A1_A1])
+    analizer.register(ReferenceItem, [A1])
+    analizer.register(ReferenceItem, ["ERROR_REF"])
+    #analizer.register(ReferenceItem, [NamedRange])
 
-    analizer.register_identifier("EXPRESSION", ["FUNC_CALL"], lambda *x: GenericExpression(x[0]))
-    analizer.register_identifier("EXPRESSION", ["STRING"], lambda *x: GenericExpression(x[0]))
-    analizer.register_identifier("EXPRESSION", ["FLOAT"], lambda *x: GenericExpression(x[0]))
-    analizer.register_identifier("EXPRESSION", ["A1"], lambda *x: GenericExpression(x[0]))
-    analizer.register_identifier("EXPRESSION", ["A1:A1"], lambda *x: GenericExpression(x[0]))
-    analizer.register_identifier("EXPRESSION", ["SHEET!A1"], lambda *x: GenericExpression(x[0]))
-    analizer.register_identifier("EXPRESSION", ["SHEET!A1:A1"], lambda *x: GenericExpression(x[0]))
+    analizer.register(Sheet_A1, ["SINGLE_QUOTE_STRING", "!", A1_A1])
+    analizer.register(Sheet_A1, ["SINGLE_QUOTE_STRING", "!", A1])
+    analizer.register(Sheet_A1, [Identifier, "!", A1_A1])
+    analizer.register(Sheet_A1, [Identifier, "!", A1])
 
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "^", "EXPRESSION"], lambda *x: Power(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "^", "EXPRESSION", ")"], lambda *x: Power(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "/", "EXPRESSION"], lambda *x: Divide(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "/", "EXPRESSION", ")"], lambda *x: Divide(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "*", "EXPRESSION"], lambda *x: Multiply(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "*", "EXPRESSION", ")"], lambda *x: Multiply(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "-", "EXPRESSION"], lambda *x: Substract(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "-", "EXPRESSION", ")"], lambda *x: Substract(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "+", "EXPRESSION"], lambda *x: Add(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "+", "EXPRESSION", ")"], lambda *x: Add(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "&", "EXPRESSION"], lambda *x: Concat(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "&", "EXPRESSION", ")"], lambda *x: Concat(x[1], x[3]))
+    analizer.register(A1_A1, [A1, ":", A1])
+    analizer.register(A1, ["CELL"])
 
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "=", "EXPRESSION"], lambda *x: Equal(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "=", "EXPRESSION", ")"], lambda *x: Equal(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "<>", "EXPRESSION"], lambda *x: NotEqual(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "<>", "EXPRESSION", ")"], lambda *x: NotEqual(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "<=", "EXPRESSION"], lambda *x: LessEqual(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "<=", "EXPRESSION", ")"], lambda *x: LessEqual(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", ">=", "EXPRESSION"], lambda *x: GreaterEqual(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", ">=", "EXPRESSION", ")"], lambda *x: GreaterEqual(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", "<", "EXPRESSION"], lambda *x: LessThan(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", "<", "EXPRESSION", ")"], lambda *x: LessThan(x[1], x[3]))
-    analizer.register_identifier("EXPRESSION", ["EXPRESSION", ">", "EXPRESSION"], lambda *x: GreaterThan(x[0], x[2]))
-    analizer.register_identifier("EXPRESSION", ["(", "EXPRESSION", ">", "EXPRESSION", ")"], lambda *x: GreaterThan(x[1], x[3]))
+    analizer.register(NamedRange, [Identifier])
 
-    analizer.register_identifier("FORMULA", ["=", "(", "EXPRESSION", ")"], lambda *x: Formula(x[2]))
-    analizer.register_identifier("FORMULA", ["=", "EXPRESSION"], lambda *x: Formula(x[1]))
+
+    analizer.register(FuncCall, [Identifier, "(", ")"])
+    # analizer.register(FuncCall, [Identifier, "(", Param, ")"])
+    analizer.register(FuncCall, [Identifier, "(", ParamList, ")"])
+
+    # analizer.register(Param, [Formula, ","])
+    # analizer.register(Params, ["(", Param])
+    # analizer.register(Params, [Params, Param])
+    # analizer.register(ParamList, [Params, Formula, ")"])
+
+    analizer.register(Param, [Constant])
+    analizer.register(Param, [FuncCall])
+    analizer.register(Param, [Operation])
+    analizer.register(Param, [Reference])
+    # analizer.register(Param, [ConstantArray])
+    analizer.register(Param, ["(", Param, ")"])
+
+    #analizer.register(Params, [Param])
+    #analizer.register(Params, [Params, ",", Param])
+    analizer.register(ParamList, [Param, ",", ParamList])
+    analizer.register(ParamList, [Param])
+
+
+    # analizer.register(Operation, [Formula, BinaryOperator, Formula])
+    # analizer.register(Operation, [UnaryOperatorPre, Formula])
+    # analizer.register(Operation, [Formula, UnaryOperatorPost])
+    analizer.register(Operation, [OperationItem, BinaryOperator, OperationItem])
+    analizer.register(Operation, [UnaryOperatorPre, OperationItem])
+    analizer.register(Operation, [OperationItem, UnaryOperatorPost])
+
+
+    analizer.register(OperationItem, [Constant])
+    analizer.register(OperationItem, [FuncCall])
+    analizer.register(OperationItem, [Reference])
+    # analizer.register(OperationItem, [Operation])
+    # analizer.register(OperationItem, [ConstantArray])
+    analizer.register(OperationItem, ["(", OperationItem, ")"])
+
+
+    # TODO: fix operator precedence
+    analizer.register(BinaryOperator, [Power])
+    analizer.register(BinaryOperator, [Divide])
+    analizer.register(BinaryOperator, [Multiply])
+    analizer.register(BinaryOperator, [Substract])
+    analizer.register(BinaryOperator, [Add])
+    analizer.register(BinaryOperator, [Concat])
+    analizer.register(BinaryOperator, [Equal])
+    analizer.register(BinaryOperator, [NotEqual])
+    analizer.register(BinaryOperator, [LessEqual])
+    analizer.register(BinaryOperator, [GreaterEqual])
+    analizer.register(BinaryOperator, [LessThan])
+    analizer.register(BinaryOperator, [GreaterThan])
+
+    analizer.register(Power, ["^"])
+    analizer.register(Divide, ["/"])
+    analizer.register(Multiply, ["*"])
+    analizer.register(Substract, ["-"])
+    analizer.register(Add, ["+"])
+    analizer.register(Concat, ["&"])
+    analizer.register(Equal, ["="])
+    analizer.register(NotEqual, ["<>"])
+    analizer.register(LessEqual, ["<="])
+    analizer.register(GreaterEqual, [">="])
+    analizer.register(LessThan, ["<"])
+    analizer.register(GreaterThan, [">"])
+
+    analizer.register(UnaryOperatorPre, [UnaryPlus])
+    analizer.register(UnaryOperatorPre, [UnaryMinus])
+    analizer.register(UnaryOperatorPost, [UnaryPercent])
+
+    analizer.register(UnaryPlus, ["+"])
+    analizer.register(UnaryMinus, ["-"])
+    analizer.register(UnaryPercent, ["%"])
+
+
+    analizer.register(Identifier, ["IDENTIFIER"])
 
     return
 
@@ -152,6 +213,6 @@ configureFormulaTokenizer(formulaTokenizer)
 configureFormulaAnalizer(formulaAnalizer)
 
 
-def parseFormula(formula: str) -> Token:
+def parseFormula(formula: str):
     return formulaAnalizer.parse(formulaTokenizer.tokenize(formula))
 

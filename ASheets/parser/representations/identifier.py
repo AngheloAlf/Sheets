@@ -6,6 +6,8 @@ from ..token import Token
 
 
 class Identifier(ARepresentation):
+    pass
+    """
     def __init__(self, identf: Token, extra: Optional[Token]=None):
         self.identf = identf
         self.extra = extra
@@ -14,3 +16,5 @@ class Identifier(ARepresentation):
         if self.extra is None:
             return str(self.identf.token)
         return str(self.identf.token)+str(self.extra.token)
+    pass
+    """
