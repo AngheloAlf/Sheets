@@ -8,7 +8,7 @@ from .. import utils
 
 
 class EarleyItem():
-    def __init__(self, ruleId=None, name=None, nextPos=None, start=None, end=None, *, item: Optional[EarleyItem]=None):
+    def __init__(self, ruleId: Optional[int]=None, name=None, nextPos: int=0, start: int=0, end=None, *, item: Optional[EarleyItem]=None):
         if item is not None:
             self._ruleId = item.ruleId
             self._name = item.name
@@ -16,7 +16,7 @@ class EarleyItem():
             self._start = item.start
             self._end = item.end
         else:
-            if ruleId is None or name is None or nextPos is None or start is None:
+            if ruleId is None or name is None:
                 raise ValueError("Invalid parameters.")
             self._ruleId = ruleId
             self._name = name
@@ -52,6 +52,134 @@ class EarleyItem():
         if self.end != other.end:
             return False
         return True
+
+    def advance(self):
+        self._nextPos += 1
+
+
+class EarleyStateSet():
+    def __init__(self, setId: int):
+        self._items: List[EarleyItem] = []
+        self._setId: int = setId
+
+    def __len__(self):
+        return len(self._items)
+
+    def __getitem__(self, key):
+        return self._items[key]
+    
+    def newItem(self, ruleId: int, name, *, unique: bool=False):
+        item = EarleyItem(ruleId, name, start=self._setId)
+        if unique and item in self._items:
+            return
+        self._items.append(item)
+        return
+
+    def addItemNext(self, item: EarleyItem, *, unique: bool=False):
+        nextItem = EarleyItem(item=item)
+        nextItem.advance()
+        if unique and nextItem in self._items:
+            return
+        self._items.append(nextItem)
+        return
+
+    def addItem(self, item: EarleyItem):
+        self._items.append(item)
+        return
+
+
+class EarleyParser():
+    def __init__(self, rules, startName, startsIndexes):
+        self._rules = rules
+        self._S: List[EarleyStateSet] = [EarleyStateSet(0)]
+        for rule_index in startsIndexes:
+            self._S[0].newItem(rule_index, startName)
+
+
+    def _is_nullable(self, rule, nullables):
+        for x in rule[1]:
+            if x not in nullables:
+                return False
+        return True
+
+    def _update_nullables(self, nullables):
+        for i in range(len(self._rules)):
+            if self._is_nullable(self._rules[i], nullables):
+                nullables.add(self._rules[i][0])
+
+    def get_nullable_rules(self):
+        nullables = set()
+        old_size = -1
+        while old_size != len(nullables):
+            old_size = len(nullables)
+            self._update_nullables(nullables)
+        return nullables
+
+
+    def _next_symbol(self, item: EarleyItem):
+        sequence = self._rules[item.ruleId][1]
+        if item.nextPos >= len(sequence):
+            return None
+        return sequence[item.nextPos]
+
+
+    def _complete(self, i, j, actual_item: EarleyItem):
+        start_set_of_item = self._S[actual_item.start]
+        for old_i in range(len(start_set_of_item)):
+            old_item = start_set_of_item[old_i]
+            if self._next_symbol(old_item) == actual_item.name:
+                self._S[i].addItemNext(old_item, unique=True)
+        return
+
+    def _scan(self, i, j, symbol, tokens, actual_item: EarleyItem):
+        if tokens[i] == symbol:
+            if i + 1 >= len(self._S):
+                self._S.append(EarleyStateSet(i+1))
+            self._S[i+1].addItemNext(actual_item)
+        return
+
+    def _predict(self, i, j, symbol, actual_item: EarleyItem, nullables):
+        for rule_index in range(len(self._rules)):
+            rule_name, rule, callback = self._rules[rule_index]
+            if rule_name == symbol:
+                self._S[i].newItem(rule_index, rule_name, unique=True)
+                if rule_name in nullables:
+                    self._S[i].addItemNext(actual_item, unique=True)
+        return
+
+
+    def _invert_items(self):
+        inverted: List[EarleyStateSet] = [EarleyStateSet(i) for i in range(len(self._S))]
+        for i in range(len(self._S)):
+            for y in self._S[i]:
+                if y.nextPos == len(self._rules[y.ruleId][1]):
+                    y._end = i
+                    inverted[y.start].addItem(y)
+        return inverted
+
+
+    def parse(self, tokens):
+        nullables = self.get_nullable_rules()
+        i = 0
+        while i < len(self._S):
+            state_set = self._S[i]
+            j = 0
+            while j < len(state_set):
+                actual_item = state_set[j]
+                symbol = self._next_symbol(actual_item)
+                if symbol == None:
+                    self._complete(i, j, actual_item)
+                elif is_terminal(symbol):
+                    self._scan(i, j, symbol, tokens, actual_item)
+                elif is_non_terminal(symbol):
+                    self._predict(i, j, symbol, actual_item, nullables)
+                else:
+                    print("Wat?")
+                    exit(-1)
+                j += 1
+            i += 1
+        inverted = self._invert_items()
+        return inverted
 
 
 class TokenAnalizer():
@@ -92,85 +220,6 @@ class TokenAnalizer():
             old_size = len(nullables)
             self._update_nullables(nullables)
         return nullables
-
-
-    def _next_symbol(self, item):
-        if item.nextPos >= len(self._registered[item.ruleId][1]):
-            return None
-        return self._registered[item.ruleId][1][item.nextPos]
-
-
-    def _complete(self, S, i, j):
-        item = S[i][j]
-        for old_i in range(len(S[item.start])):
-            old_item = S[item.start][old_i]
-            if self._next_symbol(old_item) == item.name:
-                aux = EarleyItem(old_item.ruleId, old_item.name, old_item.nextPos+1, old_item.start)
-                append_no_repetition(S[i], aux)
-
-    def _scan(self, S, i, j, symbol, tokens):
-        item = S[i][j]
-        if tokens[i] == symbol:
-            if i + 1 >= len(S):
-                S.append([])
-            aux = EarleyItem(item.ruleId, item.name, item.nextPos+1, item.start)
-            S[i+1].append(aux)
-
-    def _predict(self, S, i, j, symbol, nullables):
-        for rule_index in range(len(self._registered)):
-            rule_name, rule, callback = self._registered[rule_index]
-            if rule_name == symbol:
-                aux = EarleyItem(rule_index, rule_name, 0, i)
-                append_no_repetition(S[i], aux)
-                if rule_name in nullables:
-                    aux = EarleyItem(S[i][j].ruleId, S[i][j].name, S[i][j].nextPos+1, S[i][j].start)
-                    append_no_repetition(S[i], aux)
-
-
-    def _create_items(self, tokens: List[Token]):
-        nullables = self.get_nullable_rules()
-        S = [[]]
-        for x in self._starts:
-            S[0].append(EarleyItem(x, self._start, 0, 0))
-        #print(len(tokens))
-        #print()
-        i = 0
-        while i < len(S):
-            # print(i)
-            j = 0
-            while j < len(S[i]):
-                # print("\t", j)
-                symbol = self._next_symbol(S[i][j])
-                if symbol == None:
-                    #print(" complete")
-                    self._complete(S, i, j)
-                elif is_terminal(symbol):
-                    #print(" scan")
-                    self._scan(S, i, j, symbol, tokens)
-                elif is_non_terminal(symbol):
-                    #print(" predict")
-                    self._predict(S, i, j, symbol, nullables)
-                else:
-                    print("Wat?")
-                    exit(-1)
-                j += 1
-            i += 1
-        return S
-
-
-    def _invert_items(self, items):
-        inverted = [[] for i in range(len(items))]
-        for i in range(len(items)):
-            # print(i)
-            for y in items[i]:
-                # print("\t", y, self._registered[y["rule"]][1][0])
-                # print("\t", y, y["next"], len(self._registered[y["rule"]][1][0]))
-                if y.nextPos == len(self._registered[y.ruleId][1]):
-                    y._end = i
-                    inverted[y.start].append(y)
-                    # print("\t", y, self._registered[y["rule"]][1][0])
-            # print()
-        return inverted
 
 
     def _get_produtions_matching_name_at(self, inverted_items, name, start):
@@ -219,12 +268,12 @@ class TokenAnalizer():
 
 
     def parse(self, tokens: List[Token]):
-        items = self._create_items(tokens)
+        parser = EarleyParser(self._registered, self._start, self._starts)
+        items = parser.parse(tokens)
         # print(len(items), len(tokens)+1)
         if len(items) != len(tokens)+1:
             return None
-        inverted = self._invert_items(items)
-        tree = self._match_subtree(inverted, tokens, self._start)
+        tree = self._match_subtree(items, tokens, self._start)
         # print(tree)
         return tree[0]
 
@@ -234,8 +283,3 @@ def is_terminal(prod):
 
 def is_non_terminal(prod):
     return issubclass(prod, ARepresentation)
-
-def append_no_repetition(items_list, item):
-    if item not in items_list:
-        items_list.append(item)
-    return
