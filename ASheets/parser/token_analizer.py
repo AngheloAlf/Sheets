@@ -57,7 +57,7 @@ class EarleyItem():
 class TokenAnalizer():
     def __init__(self):
         self._start = None
-        self._starts = list()
+        self._starts: List[int] = list()
         self._registered = list()
 
     def __str__(self):
@@ -71,11 +71,11 @@ class TokenAnalizer():
         self.register(identifier, sequence, callback)
 
     def register(self, identifier, sequence: List, callback=None):
-        self._registered.append((identifier, (sequence, callback)))
+        self._registered.append((identifier, sequence, callback))
 
 
     def _is_nullable(self, rule, nullables):
-        for x in rule[1][0]:
+        for x in rule[1]:
             if x not in nullables:
                 return False
         return True
@@ -95,9 +95,9 @@ class TokenAnalizer():
 
 
     def _next_symbol(self, item):
-        if item.nextPos >= len(self._registered[item.ruleId]    [1][0]):
+        if item.nextPos >= len(self._registered[item.ruleId][1]):
             return None
-        return self._registered[item.ruleId]    [1][0]    [item.nextPos]
+        return self._registered[item.ruleId][1][item.nextPos]
 
 
     def _complete(self, S, i, j):
@@ -118,7 +118,7 @@ class TokenAnalizer():
 
     def _predict(self, S, i, j, symbol, nullables):
         for rule_index in range(len(self._registered)):
-            rule_name, rule = self._registered[rule_index]
+            rule_name, rule, callback = self._registered[rule_index]
             if rule_name == symbol:
                 aux = EarleyItem(rule_index, rule_name, 0, i)
                 append_no_repetition(S[i], aux)
@@ -165,7 +165,7 @@ class TokenAnalizer():
             for y in items[i]:
                 # print("\t", y, self._registered[y["rule"]][1][0])
                 # print("\t", y, y["next"], len(self._registered[y["rule"]][1][0]))
-                if y.nextPos == len(self._registered[y.ruleId][1][0]):
+                if y.nextPos == len(self._registered[y.ruleId][1]):
                     y._end = i
                     inverted[y.start].append(y)
                     # print("\t", y, self._registered[y["rule"]][1][0])
@@ -190,7 +190,7 @@ class TokenAnalizer():
     def _match_subtree(self, inverted_items, subtokens, actual_name, start=0):
         items_with_actual_name = self._get_produtions_matching_name_at(inverted_items, actual_name, start)
         for item in items_with_actual_name:
-            rules = self._registered[item.ruleId][1][0]
+            rules = self._registered[item.ruleId][1]
             substart = 0
             matchs = True
             data = []
