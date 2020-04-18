@@ -1,17 +1,33 @@
 from __future__ import annotations
 from typing import List, Tuple
-from typing import Type, Optional
+from typing import Type, Optional, Union
 
+from .token import Terminal
 from .token import Token
 from .representations.abstract_representation import ARepresentation
 from .. import utils
 
 
-class RuleSequence():
-    def __init__(self, name: Type[ARepresentation], sequence: List, callback):
-        self._name = name
+class Rule():
+    def __init__(self, name: Type[ARepresentation], sequence: List[Union[Type[ARepresentation], Terminal, str]], callback):
+        self._name: Type[ARepresentation] = name
         self._sequence = sequence
         self._callback = callback
+
+    @property
+    def name(self) -> Type[ARepresentation]:
+        return self._name
+    @property
+    def sequence(self) -> List[Union[Type[ARepresentation], Terminal, str]]:
+        return self._sequence
+    @property
+    def callback(self):
+        return self._callback
+
+    def __str__(self):
+        return f"Rule<{str(self._name)}>"
+    def __repr__(self):
+        return self.__str__()
 
 
 class EarleyItem():
@@ -96,23 +112,24 @@ class EarleyStateSet():
 
 
 class EarleyParser():
-    def __init__(self, rules, startName: Type[ARepresentation], startsIndexes: List[int]):
-        self._rules = rules
+    def __init__(self, rules: List[Rule], startName: Type[ARepresentation], startsIndexes: List[int]):
+        self._rules: List[Rule] = rules
         self._S: List[EarleyStateSet] = [EarleyStateSet(0)]
         for rule_index in startsIndexes:
             self._S[0].newItem(rule_index, startName)
+        return
 
 
-    def _is_nullable(self, rule, nullables: set) -> bool:
-        for x in rule[1]:
+    def _is_nullable(self, rule: Rule, nullables: set) -> bool:
+        for x in rule.sequence:
             if x not in nullables:
                 return False
         return True
 
-    def _update_nullables(self, nullables):
+    def _update_nullables(self, nullables: set):
         for i in range(len(self._rules)):
             if self._is_nullable(self._rules[i], nullables):
-                nullables.add(self._rules[i][0])
+                nullables.add(self._rules[i].name)
         return
 
     def get_nullable_rules(self):
@@ -124,8 +141,8 @@ class EarleyParser():
         return nullables
 
 
-    def _next_symbol(self, item: EarleyItem):
-        sequence = self._rules[item.ruleId][1]
+    def _next_symbol(self, item: EarleyItem) -> Optional[Union[Type[ARepresentation], Terminal, str]]:
+        sequence = self._rules[item.ruleId].sequence
         if item.nextPos >= len(sequence):
             return None
         return sequence[item.nextPos]
@@ -139,19 +156,19 @@ class EarleyParser():
                 self._S[i].addItemNext(old_item, unique=True)
         return
 
-    def _scan(self, i: int, symbol, tokens: List, actual_item: EarleyItem):
+    def _scan(self, i: int, symbol: Union[Terminal, str], tokens: List[Token], actual_item: EarleyItem):
         if tokens[i] == symbol:
             if i + 1 >= len(self._S):
                 self._S.append(EarleyStateSet(i+1))
             self._S[i+1].addItemNext(actual_item)
         return
 
-    def _predict(self, i: int, symbol: Type[ARepresentation], actual_item: EarleyItem, nullables):
+    def _predict(self, i: int, symbol: Type[ARepresentation], actual_item: EarleyItem, nullables: set):
         for rule_index in range(len(self._rules)):
-            rule_name, rule, callback = self._rules[rule_index]
-            if rule_name == symbol:
-                self._S[i].newItem(rule_index, rule_name, unique=True)
-                if rule_name in nullables:
+            rule = self._rules[rule_index]
+            if rule.name == symbol:
+                self._S[i].newItem(rule_index, rule.name, unique=True)
+                if rule.name in nullables:
                     self._S[i].addItemNext(actual_item, unique=True)
         return
 
@@ -160,13 +177,13 @@ class EarleyParser():
         inverted: List[EarleyStateSet] = [EarleyStateSet(i) for i in range(len(self._S))]
         for i in range(len(self._S)):
             for y in self._S[i]:
-                if y.nextPos == len(self._rules[y.ruleId][1]):
+                if y.nextPos == len(self._rules[y.ruleId].sequence):
                     y._end = i
                     inverted[y.start].addItem(y)
         return inverted
 
 
-    def parse(self, tokens):
+    def parse(self, tokens: List[Token]):
         nullables = self.get_nullable_rules()
         i = 0
         while i < len(self._S):
@@ -194,20 +211,22 @@ class TokenAnalizer():
     def __init__(self):
         self._start: Optional[Type[ARepresentation]] = None
         self._starts: List[int] = list()
-        self._registered = list()
+        self._registered: List[Rule] = list()
 
     def __str__(self):
         return "<TokenAnalizer>"
     def __repr__(self):
         return "<TokenAnalizer>"
 
-    def register_start(self, identifier: Type[ARepresentation], sequence: List, callback=None):
+    def register_start(self, identifier: Type[ARepresentation], sequence: List[Union[Type[ARepresentation], Terminal, str]], callback=None):
         self._start = identifier
         self._starts.append(len(self._registered))
         self.register(identifier, sequence, callback)
+        return
 
-    def register(self, identifier, sequence: List, callback=None):
-        self._registered.append((identifier, sequence, callback))
+    def register(self, identifier, sequence: List[Union[Type[ARepresentation], Terminal, str]], callback=None):
+        self._registered.append(Rule(identifier, sequence, callback))
+        return
 
 
     def _get_produtions_matching_name_at(self, inverted_items, name, start):
@@ -227,7 +246,7 @@ class TokenAnalizer():
     def _match_subtree(self, inverted_items, subtokens, actual_name, start=0):
         items_with_actual_name = self._get_produtions_matching_name_at(inverted_items, actual_name, start)
         for item in items_with_actual_name:
-            rules = self._registered[item.ruleId][1]
+            rules = self._registered[item.ruleId].sequence
             substart = 0
             matchs = True
             data = []
@@ -266,7 +285,7 @@ class TokenAnalizer():
 
 
 def is_terminal(prod):
-    return isinstance(prod, str)
+    return isinstance(prod, (Terminal, str))
 
 def is_non_terminal(prod):
     return issubclass(prod, ARepresentation)

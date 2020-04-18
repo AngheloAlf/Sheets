@@ -8,79 +8,80 @@ from .tokenizer import Tokenizer
 from .token_analizer import TokenAnalizer
 from .. import utils
 
-from ASheets.parser.representations.generic_expression import GenericExpression
-from ASheets.parser.representations.data_types import TypeString, TypeNumber, TypeBoolean, TypeErrorGeneral, Constant
-from ASheets.parser.representations.identifier import Identifier
-from ASheets.parser.representations.a1 import A1, A1_A1, Sheet_A1
-from ASheets.parser.representations.func_call import Param, Params, ParamList, FuncCall
-from ASheets.parser.representations.binary_operator import BinaryOperator, Power, Divide, Multiply, Substract, Add, Concat, Equal, NotEqual, LessEqual, GreaterEqual, LessThan, GreaterThan
-from ASheets.parser.representations.unary_operator import UnaryOperatorPre, UnaryOperatorPost, UnaryMinus, UnaryPlus, UnaryPercent
-from ASheets.parser.representations.operation import Operation, OperationItem
-from ASheets.parser.representations.reference import Reference, ReferenceItem, NamedRange
-from ASheets.parser.representations.formula import Formula
-from ASheets.parser.representations.abstract_representation import Start, ARepresentation
+from .representations.terminals import *
 
+from .representations.generic_expression import GenericExpression
+from .representations.data_types import TypeString, TypeNumber, TypeBoolean, TypeErrorGeneral, Constant
+from .representations.identifier import Identifier
+from .representations.a1 import A1, A1_A1, Sheet_A1
+from .representations.func_call import Param, Params, ParamList, FuncCall
+from .representations.binary_operator import BinaryOperator, Power, Divide, Multiply, Substract, Add, Concat, Equal, NotEqual, LessEqual, GreaterEqual, LessThan, GreaterThan
+from .representations.unary_operator import UnaryOperatorPre, UnaryOperatorPost, UnaryMinus, UnaryPlus, UnaryPercent
+from .representations.operation import Operation, OperationItem
+from .representations.reference import Reference, ReferenceItem, NamedRange
+from .representations.formula import Formula
+from .representations.abstract_representation import Start, ARepresentation
 
 
 def configureFormulaTokenizer(tokenizer: Tokenizer) -> None:
-    tokenizer.register_skipable("SPACE", r"\s+")
+    tokenizer.register_skipable(SPACE, r"\s+")
 
-    tokenizer.register("BOOL", r"TRUE|FALSE")
+    tokenizer.register(BOOL, r"TRUE|FALSE")
 
-    tokenizer.register("CELL", r"\$?[A-Z]+\$?[1-9]([0-9]*)")
+    tokenizer.register(CELL, r"\$?[A-Z]+\$?[1-9]([0-9]*)")
 
-    tokenizer.register("ERROR_REF", r"\#REF!")
-    tokenizer.register("ERROR_GENERAL", r"(\#NULL!)|(\#DIV/0)|(\#VALUE!)|(\#NAME?)|(\#NUM!)|(\#N/A)")
+    tokenizer.register(ERROR_REF, r"\#REF!")
+    tokenizer.register(ERROR_GENERAL, r"(\#NULL!)|(\#DIV/0)|(\#VALUE!)|(\#NAME?)|(\#NUM!)|(\#N/A)")
 
-    tokenizer.register("STRING", r'"([^"]*)"')
-    tokenizer.register("SINGLE_QUOTE_STRING", r"([^']*)'")
-    tokenizer.register("IDENTIFIER", r"[a-zA-Z_]([a-zA-Z_0-9])*")
-    tokenizer.register("NUMBER", r"(\d+(\.\d+)?)|(\.(\d+))")
+    tokenizer.register(STRING, r'"([^"]*)"')
+    tokenizer.register(SINGLE_QUOTE_STRING, r"([^']*)'")
+    tokenizer.register(IDENTIFIER, r"[a-zA-Z_]([a-zA-Z_0-9])*")
+    tokenizer.register(NUMBER, r"(\d+(\.\d+)?)|(\.(\d+))")
 
     brackets = [
-        ("L_PAREN", "("), 
-        ("R_PAREN", ")"), 
-        ("L_CURLY", "{"), 
-        ("R_CURLY", "}"), 
-        ("L_BRACKET", "["), 
-        ("R_BRACKET", "]")
+        (L_PAREN, "("), 
+        (R_PAREN, ")"), 
+        (L_CURLY, "{"), 
+        (R_CURLY, "}"), 
+        (L_BRACKET, "["), 
+        (R_BRACKET, "]")
     ]
     symbols = [
-        ("DOLLAR", "$"), 
-        ("COLON", ":"), 
-        ("EXCLAM", "!"), 
-        ("NUMB_SIGN", "#"), 
-        ("DOT", "."), 
-        ("COMMA", ","), 
-        ("SEMI_COLON", ";"), 
-        ("QUOT", "'"), 
-        ("QUOT_DOUBLE", "\"")
+        (DOLLAR, "$"), 
+        (COLON, ":"), 
+        (EXCLAM, "!"), 
+        (NUMB_SIGN, "#"), 
+        (DOT, "."), 
+        (COMMA, ","), 
+        (SEMI_COLON, ";"), 
+        (QUOT, "'"), 
+        (QUOT_DOUBLE, "\"")
     ]
     binary_arithmetic_ops = [
-        ("ADD", "+"), 
-        ("SUB", "-"), 
-        ("MULT", "*"), 
-        ("DIV", "/"), 
-        ("EXPONENT", "^"), 
-        ("AMPERSAND", "&")
+        (ADD, "+"), 
+        (SUB, "-"), 
+        (MULT, "*"), 
+        (DIV, "/"), 
+        (EXPONENT, "^"), 
+        (AMPERSAND, "&")
     ]
     unary_arithmetic_ops = [
-        ("PERCENT", "%"), 
+        (PERCENT, "%"), 
     ]
     equality_ops = [
-        ("EQUAL", "="), 
-        ("NOTEQUAL", "<>"), 
-        ("LQ", "<="), 
-        ("GQ", ">="), 
-        ("LT", "<"), 
-        ("GT", ">")
+        (EQUAL, "="), 
+        (NOTEQUAL, "<>"), 
+        (LQ, "<="), 
+        (GQ, ">="), 
+        (LT, "<"), 
+        (GT, ">")
     ]
     for name, expression in brackets+symbols+binary_arithmetic_ops+unary_arithmetic_ops+equality_ops:
-        tokenizer.register(name, re.escape(expression), lambda x: Token(x.token, x.token))
+        tokenizer.register(name, re.escape(expression))
 
     def error_callback(x):
         raise ValueError(f"Unrecognized value: {x}")
-    tokenizer.register("__ERROR", r".", error_callback)
+    tokenizer.register(Terminal("__ERROR"), r".", error_callback)
     return
 
 
@@ -99,10 +100,10 @@ def configureFormulaAnalizer(analizer: TokenAnalizer) -> None:
     analizer.register(Constant, [TypeBoolean])
     analizer.register(Constant, [TypeErrorGeneral])
 
-    analizer.register(TypeString, ["STRING"])
-    analizer.register(TypeNumber, ["NUMBER"])
-    analizer.register(TypeBoolean, ["BOOL"])
-    analizer.register(TypeErrorGeneral, ["ERROR_GENERAL"])
+    analizer.register(TypeString, [STRING])
+    analizer.register(TypeNumber, [NUMBER])
+    analizer.register(TypeBoolean, [BOOL])
+    analizer.register(TypeErrorGeneral, [ERROR_GENERAL])
 
 
     analizer.register(Reference, [ReferenceItem])
@@ -113,16 +114,16 @@ def configureFormulaAnalizer(analizer: TokenAnalizer) -> None:
     analizer.register(ReferenceItem, [Sheet_A1])
     analizer.register(ReferenceItem, [A1_A1])
     analizer.register(ReferenceItem, [A1])
-    analizer.register(ReferenceItem, ["ERROR_REF"])
+    analizer.register(ReferenceItem, [ERROR_REF])
     #analizer.register(ReferenceItem, [NamedRange])
 
-    analizer.register(Sheet_A1, ["SINGLE_QUOTE_STRING", "!", A1_A1])
-    analizer.register(Sheet_A1, ["SINGLE_QUOTE_STRING", "!", A1])
+    analizer.register(Sheet_A1, [SINGLE_QUOTE_STRING, "!", A1_A1])
+    analizer.register(Sheet_A1, [SINGLE_QUOTE_STRING, "!", A1])
     analizer.register(Sheet_A1, [Identifier, "!", A1_A1])
     analizer.register(Sheet_A1, [Identifier, "!", A1])
 
     analizer.register(A1_A1, [A1, ":", A1])
-    analizer.register(A1, ["CELL"])
+    analizer.register(A1, [CELL])
 
     analizer.register(NamedRange, [Identifier])
 
@@ -200,8 +201,7 @@ def configureFormulaAnalizer(analizer: TokenAnalizer) -> None:
     analizer.register(UnaryMinus, ["-"])
     analizer.register(UnaryPercent, ["%"])
 
-
-    analizer.register(Identifier, ["IDENTIFIER"])
+    analizer.register(Identifier, [IDENTIFIER])
 
     return
 
@@ -212,7 +212,5 @@ formulaAnalizer = TokenAnalizer()
 configureFormulaTokenizer(formulaTokenizer)
 configureFormulaAnalizer(formulaAnalizer)
 
-
 def parseFormula(formula: str):
     return formulaAnalizer.parse(formulaTokenizer.tokenize(formula))
-

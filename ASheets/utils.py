@@ -1,5 +1,5 @@
 def match_at(value, to_lookup, lookup_index: int=0) -> bool:
-    return to_lookup[lookup_index:lookup_index+len(value)] == value
+    return bool(to_lookup[lookup_index:lookup_index+len(value)] == value)
 
 def remove_range(values_list: list, index: int, length: int) -> list:
     removed = []
