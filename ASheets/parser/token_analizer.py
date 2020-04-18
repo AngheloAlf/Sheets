@@ -9,11 +9,15 @@ from .. import utils
 
 
 class Rule():
-    def __init__(self, name: Type[ARepresentation], sequence: List[Union[Type[ARepresentation], Terminal, str]], callback):
+    def __init__(self, ruleId: int, name: Type[ARepresentation], sequence: List[Union[Type[ARepresentation], Terminal, str]], callback):
+        self._ruleId: int = ruleId
         self._name: Type[ARepresentation] = name
         self._sequence = sequence
         self._callback = callback
 
+    @property
+    def ruleId(self) -> int:
+        return self._ruleId
     @property
     def name(self) -> Type[ARepresentation]:
         return self._name
@@ -31,28 +35,29 @@ class Rule():
 
 
 class EarleyItem():
-    def __init__(self, ruleId: Optional[int]=None, name: Optional[Type[ARepresentation]]=None, nextPos: int=0, start: int=0, end=None, *, item: Optional[EarleyItem]=None):
+    def __init__(self, rule: Optional[Rule]=None, nextPos: int=0, start: int=0, end=None, *, item: Optional[EarleyItem]=None):
         if item is not None:
-            self._ruleId: int = item.ruleId
-            self._name: Type[ARepresentation] = item.name
+            self._rule: Rule = item.rule
             self._nextPos: int = item.nextPos
             self._start: int = item.start
             self._end: int = item.end
         else:
-            if ruleId is None or name is None:
+            if rule is None:
                 raise ValueError("Invalid parameters.")
-            self._ruleId = ruleId
-            self._name = name
+            self._rule = rule
             self._nextPos = nextPos
             self._start = start
             self._end = end
 
     @property
+    def rule(self) -> Rule:
+        return self._rule
+    @property
     def ruleId(self) -> int:
-        return self._ruleId
+        return self._rule.ruleId
     @property
     def name(self) -> Type[ARepresentation]:
-        return self._name
+        return self._rule.name
     @property
     def nextPos(self) -> int:
         return self._nextPos
@@ -91,8 +96,8 @@ class EarleyStateSet():
     def __getitem__(self, key):
         return self._items[key]
     
-    def newItem(self, ruleId: int, name: Type[ARepresentation], *, unique: bool=False):
-        item = EarleyItem(ruleId, name, start=self._setId)
+    def newItem(self, rule: Rule, *, unique: bool=False):
+        item = EarleyItem(rule, start=self._setId)
         if unique and item in self._items:
             return
         self._items.append(item)
@@ -112,11 +117,11 @@ class EarleyStateSet():
 
 
 class EarleyParser():
-    def __init__(self, rules: List[Rule], startName: Type[ARepresentation], startsIndexes: List[int]):
+    def __init__(self, rules: List[Rule], startsIndexes: List[int]):
         self._rules: List[Rule] = rules
         self._S: List[EarleyStateSet] = [EarleyStateSet(0)]
         for rule_index in startsIndexes:
-            self._S[0].newItem(rule_index, startName)
+            self._S[0].newItem(self._rules[rule_index])
         return
 
 
@@ -167,7 +172,7 @@ class EarleyParser():
         for rule_index in range(len(self._rules)):
             rule = self._rules[rule_index]
             if rule.name == symbol:
-                self._S[i].newItem(rule_index, rule.name, unique=True)
+                self._S[i].newItem(rule, unique=True)
                 if rule.name in nullables:
                     self._S[i].addItemNext(actual_item, unique=True)
         return
@@ -176,14 +181,16 @@ class EarleyParser():
     def _invert_items(self) -> List[EarleyStateSet]:
         inverted: List[EarleyStateSet] = [EarleyStateSet(i) for i in range(len(self._S))]
         for i in range(len(self._S)):
-            for y in self._S[i]:
+            state_set = self._S[i]
+            for j in range(len(state_set)):
+                y = state_set[j]
                 if y.nextPos == len(self._rules[y.ruleId].sequence):
                     y._end = i
                     inverted[y.start].addItem(y)
         return inverted
 
 
-    def parse(self, tokens: List[Token]):
+    def parse(self, tokens: List[Token]) -> List[EarleyStateSet]:
         nullables = self.get_nullable_rules()
         i = 0
         while i < len(self._S):
@@ -225,7 +232,7 @@ class TokenAnalizer():
         return
 
     def register(self, identifier, sequence: List[Union[Type[ARepresentation], Terminal, str]], callback=None):
-        self._registered.append(Rule(identifier, sequence, callback))
+        self._registered.append(Rule(len(self._registered), identifier, sequence, callback))
         return
 
 
@@ -276,7 +283,7 @@ class TokenAnalizer():
     def parse(self, tokens: List[Token]):
         if self._start is None:
             raise RuntimeError("Start point has not been setted.")
-        parser = EarleyParser(self._registered, self._start, self._starts)
+        parser = EarleyParser(self._registered, self._starts)
         items = parser.parse(tokens)
         if len(items) != len(tokens)+1:
             return None
