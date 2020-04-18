@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import List, Tuple
-from typing import Type, Optional, Union
+from typing import Type, Optional, Union, cast
 
 from .token import Terminal
 from .token import Token
@@ -202,9 +202,11 @@ class EarleyParser():
                 if symbol == None:
                     self._complete(i, actual_item)
                 elif is_terminal(symbol):
-                    self._scan(i, symbol, tokens, actual_item)
+                    terminal = cast(Union[Terminal, str], symbol)
+                    self._scan(i, terminal, tokens, actual_item)
                 elif is_non_terminal(symbol):
-                    self._predict(i, symbol, actual_item, nullables)
+                    non_terminal = cast(Type[ARepresentation], symbol)
+                    self._predict(i, non_terminal, actual_item, nullables)
                 else:
                     print("Wat?")
                     exit(-1)
